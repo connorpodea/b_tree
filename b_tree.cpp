@@ -643,5 +643,6 @@ void test_tree(int b_count, int num_of_items)
 int main()
 {
     test_tree(2, 1000000);
+    test_tree(1024, 10000000);
     return 0;
 }
