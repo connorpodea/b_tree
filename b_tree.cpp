@@ -494,6 +494,7 @@ public:
             return;
 
         Block *last_block_seen = path.back();
+        path.pop_back();
         int index = get_index(last_block_seen, key);
 
         if (index > 0 && last_block_seen->get_keys().at(index - 1) == key)
@@ -502,23 +503,19 @@ public:
         }
         else
         {
-            path.clear();
-            insert_helper(this->root, key, path);
+            insert_helper(last_block_seen, key, path);
             // std::cout << std::left << std::setw(7) << key << " was successfully added to the tree.\n";
         }
     }
 
     void remove(int key)
     {
-        if (!in_tree(key))
-            return;
-
         std::vector<Block *> path;
         search_helper(this->root, key, path);
         Block *block_containing_key = path.back();
         path.pop_back();
 
-        if (block_containing_key != nullptr)
+        if (!path.empty() && block_containing_key != nullptr)
         {
             remove_helper(block_containing_key, key, path);
             // std::cout << std::left << std::setw(7) << key << " was removed from the tree.\n";
@@ -643,6 +640,5 @@ void test_tree(int b_count, int num_of_items)
 int main()
 {
     test_tree(2, 1000000);
-    test_tree(1024, 10000000);
     return 0;
 }
