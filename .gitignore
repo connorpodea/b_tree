@@ -1,0 +1,14 @@
+# Compiled Binaries
+b_tree_app
+*.out
+*.exe
+*.o
+*.obj
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE folders
+.vscode/
+.idea/
