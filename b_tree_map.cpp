@@ -512,7 +512,7 @@ public:
             // replace the value associated with that key
             V prev_val = last_block_seen->get_kv_pairs().at(index - 1).second;
             last_block_seen->get_kv_pairs().at(index - 1).second = value;
-            // std::cout << std::left << std::setw(7) << "the key " << key << " with previous value " << prev_val << " was reassigned with value " << value << std::endl;
+            std::cout << "the key " << key << " with previous value " << prev_val << " was reassigned with value " << value << std::endl;
         }
         else
         {
@@ -708,5 +708,5 @@ void run_comprehensive_test(int b_count)
 // main
 int main()
 {
-    run_comprehensive_test(2);
+    return 0;
 }

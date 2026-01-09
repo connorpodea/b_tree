@@ -499,12 +499,12 @@ public:
 
         if (index > 0 && last_block_seen->get_keys().at(index - 1) == key)
         {
-            // std::cout << std::left << std::setw(7) << "is already in the tree.\n";
+            std::cout << std::left << std::setw(7) << "is already in the tree.\n";
         }
         else
         {
             insert_helper(last_block_seen, key, path);
-            // std::cout << std::left << std::setw(7) << key << " was successfully added to the tree.\n";
+            std::cout << std::left << std::setw(7) << key << " was successfully added to the tree.\n";
         }
     }
 
@@ -518,11 +518,11 @@ public:
         if (!path.empty() && block_containing_key != nullptr)
         {
             remove_helper(block_containing_key, key, path);
-            // std::cout << std::left << std::setw(7) << key << " was removed from the tree.\n";
+            std::cout << std::left << std::setw(7) << key << " was removed from the tree.\n";
         }
         else
         {
-            // std::cout << std::left << std::setw(7) << key << " is NOT in the tree (REMOVE).\n";
+            std::cout << std::left << std::setw(7) << key << " is NOT in the tree (REMOVE).\n";
         }
     }
 
@@ -530,11 +530,11 @@ public:
     {
         if (in_tree(key))
         {
-            // std::cout << std::left << std::setw(7) << key << " is in the tree.\n";
+            std::cout << std::left << std::setw(7) << key << " is in the tree.\n";
         }
         else
         {
-            // std::cout << std::left << std::setw(7) << key << " is NOT in the tree.\n";
+            std::cout << std::left << std::setw(7) << key << " is NOT in the tree.\n";
         }
     }
 
@@ -639,6 +639,5 @@ void test_tree(int b_count, int num_of_items)
 
 int main()
 {
-    test_tree(5000, 10000000);
     return 0;
 }
