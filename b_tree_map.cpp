@@ -510,13 +510,13 @@ public:
         if (index > 0 && last_block_seen->get_kv_pairs().at(index - 1).first == key)
         {
             // replace the value associated with that key
+            V prev_val = last_block_seen->get_kv_pairs().at(index - 1).second;
             last_block_seen->get_kv_pairs().at(index - 1).second = value;
-            // std::cout << std::left << std::setw(7) << "the key " << key << " was reassigned with value " << value << std::endl;
+            // std::cout << std::left << std::setw(7) << "the key " << key << " with previous value " << prev_val << " was reassigned with value " << value << std::endl;
         }
         else
         {
             insert_helper(last_block_seen, key, value, path);
-            // std::cout << std::left << std::setw(7) << key << " was successfully added to the tree.\n";
         }
     }
 
@@ -529,14 +529,15 @@ public:
             return;
 
         Block *block_containing_key = path.back();
-        // Path includes the block itself, so we pop to get the parent as back()
         path.pop_back();
 
-        // Verify key actually exists in this block before calling helper
         int index = get_index(block_containing_key, key);
         if (index > 0 && block_containing_key->get_kv_pairs().at(index - 1).first == key)
         {
+            V value = block_containing_key->get_kv_pairs().at(index - 1).second;
             remove_helper(block_containing_key, key, path);
+
+            std::cout << "the key " << key << " and its value " << value << " were removed from the tree";
         }
     }
 
@@ -564,6 +565,28 @@ public:
         {
             std::cout << key << " was not found in the tree" << std::endl;
         }
+    }
+
+    V &at(K key)
+    {
+        std::vector<Block *> path;
+        search_helper(this->root, key, path);
+
+        if (path.empty())
+        {
+            std::cout << "the tree is empty." << std::endl;
+            return;
+        }
+
+        Block *last_block_seen = path.back();
+        int index = get_index(last_block_seen, key);
+
+        if (index > 0 && last_block->get_kv_pairs().at(index - 1).first == key)
+        {
+            return last_block->get_kv_pairs().at(index - 1).second;
+        }
+
+        throw std::out_of_range("key not found");
     }
 
     bool in_tree(K key)
