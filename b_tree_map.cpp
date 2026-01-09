@@ -283,15 +283,12 @@ private:
 
         if (is_root(block))
         {
-            std::vector<Block *> &children = block->get_children();
-
-            if (children.size() == 1)
+            if (!is_leaf(block) && block->get_kv_pairs().empty())
             {
-                Block *new_root = children.front();
-                children.clear();
-                // delete block;
-                this->root = new_root;
-                delete block;
+                Block *old_root = block;
+                this->root = block->get_children().front();
+                old_root->get_children().clear;
+                delete old_root;
             }
             return;
         }
@@ -525,15 +522,16 @@ public:
         std::vector<Block *> path;
         search_helper(this->root, key, path);
 
-        if (path.empty())
+        if (path.empty() || path.back() == nullptr)
             return;
 
-        Block *block_containing_key = path.back();
-        path.pop_back();
+        Block *target_block = path.back();
 
-        int index = get_index(block_containing_key, key);
+        int index = get_index(target_block, key);
+
         if (index > 0 && block_containing_key->get_kv_pairs().at(index - 1).first == key)
         {
+            path.pop_back();
             V value = block_containing_key->get_kv_pairs().at(index - 1).second;
             remove_helper(block_containing_key, key, path);
 
@@ -574,8 +572,7 @@ public:
 
         if (path.empty())
         {
-            std::cout << "the tree is empty." << std::endl;
-            return;
+            throw std::out_of_range("tree is empty");
         }
 
         Block *last_block_seen = path.back();
@@ -583,7 +580,7 @@ public:
 
         if (index > 0 && last_block->get_kv_pairs().at(index - 1).first == key)
         {
-            return last_block->get_kv_pairs().at(index - 1).second;
+            return last_block_seen->get_kv_pairs().at(index - 1).second;
         }
 
         throw std::out_of_range("key not found");

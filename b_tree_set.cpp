@@ -9,6 +9,8 @@
 #include <numeric>
 #include <chrono>
 
+template <typename K>
+
 class B_Tree
 {
 private:
@@ -21,7 +23,7 @@ private:
         int min_children;
         int max_children;
 
-        std::vector<int> keys;
+        std::vector<K> keys;
         std::vector<Block *> children;
 
     public:
@@ -37,7 +39,7 @@ private:
             this->children.reserve(this->max_children + 1);
         }
 
-        std::vector<int> &get_keys() { return this->keys; }
+        std::vector<K> &get_keys() { return this->keys; }
         std::vector<Block *> &get_children() { return this->children; }
 
         int get_b_count() { return this->b_count; }
@@ -59,9 +61,9 @@ private:
         return block == this->root;
     }
 
-    int get_index(Block *block, int key)
+    int get_index(Block *block, K key)
     {
-        std::vector<int> &keys = block->get_keys();
+        std::vector<K> &keys = block->get_keys();
         int left = 0;
         int right = keys.size();
 
@@ -96,7 +98,7 @@ private:
         return INT_MIN;
     }
 
-    void insert_helper(Block *trav, int key, std::vector<Block *> &path)
+    void insert_helper(Block *trav, K key, std::vector<Block *> &path)
     {
         // recursively go to leaf
         if (!is_leaf(trav))
@@ -110,7 +112,7 @@ private:
 
         // at leaf
 
-        std::vector<int> &keys = trav->get_keys();
+        std::vector<K> &keys = trav->get_keys();
         int insert_index = get_index(trav, key);
         keys.insert(keys.begin() + insert_index, key);
 
@@ -142,13 +144,13 @@ private:
         }
 
         // treat the block needing restructure as the "left_half"
-        std::vector<int> &keys_to_restructure = block->get_keys();
+        std::vector<K> &keys_to_restructure = block->get_keys();
         std::vector<Block *> &children_to_restructure = block->get_children();
 
         int key_to_move_up = keys_to_restructure.at(b_count);
 
         Block *right_half = new Block(b_count);
-        std::vector<int> &right_half_keys = right_half->get_keys();
+        std::vector<K> &right_half_keys = right_half->get_keys();
         std::vector<Block *> &right_half_children = right_half->get_children();
 
         // first b stay in left half [index 0 to b_count - 1]
@@ -175,7 +177,7 @@ private:
             children_to_restructure.erase(children_to_restructure.begin() + b_count + 1, children_to_restructure.end());
         }
 
-        std::vector<int> &parent_keys = parent->get_keys();
+        std::vector<K> &parent_keys = parent->get_keys();
         std::vector<Block *> &parent_children = parent->get_children();
 
         int parent_index = get_index(parent, key_to_move_up);
@@ -189,10 +191,10 @@ private:
         }
     }
 
-    void search_helper(Block *trav, int target_key, std::vector<Block *> &path)
+    void search_helper(Block *trav, K target_key, std::vector<Block *> &path)
     {
         path.push_back(trav);
-        std::vector<int> &keys = trav->get_keys();
+        std::vector<K> &keys = trav->get_keys();
         int index = get_index(trav, target_key);
 
         // base case : target key exists in current blocks keys
@@ -212,9 +214,9 @@ private:
         return;
     }
 
-    void remove_helper(Block *target_block, int key, std::vector<Block *> &path)
+    void remove_helper(Block *target_block, K key, std::vector<Block *> &path)
     {
-        std::vector<int> &target_keys = target_block->get_keys();
+        std::vector<K> &target_keys = target_block->get_keys();
         int index = get_index(target_block, key);
 
         if (is_leaf(target_block))
@@ -274,14 +276,12 @@ private:
 
         if (is_root(block))
         {
-            std::vector<Block *> &children = block->get_children();
-
-            if (children.size() == 1)
+            if (!is_leaf(block) && block->get_keys().empty())
             {
-                Block *new_root = children.front();
-                children.clear();
-                // delete block;
-                this->root = new_root;
+                Block *old_root = block;
+                this->root = block->get_children().front();
+                old_root->get_children().clear();
+                delete old_root;
             }
             return;
         }
@@ -289,12 +289,12 @@ private:
         // this method is active when block underflowed
         Block *parent = path.back();
         path.pop_back();
-        std::vector<int> &parent_keys = parent->get_keys();
+        std::vector<K> &parent_keys = parent->get_keys();
 
         Block *left_sibling = get_sibling(parent, block, true, false);
         Block *right_sibling = get_sibling(parent, block, false, true);
 
-        std::vector<int> &block_keys = block->get_keys();
+        std::vector<K> &block_keys = block->get_keys();
 
         // two additional edge cases, however you should always try stealing from a sibling
         // edge case 1: stealing a key from the sibling causes underflow, requiring a merge of the 2 siblings
@@ -308,7 +308,7 @@ private:
         {
             int index_of_parent_key = get_child_index(parent, block);
 
-            std::vector<int> &right_sibling_keys = right_sibling->get_keys();
+            std::vector<K> &right_sibling_keys = right_sibling->get_keys();
 
             // edge case 1 (size - 1 because this checks if after stealing, right will be under min keys)
             if (right_sibling_keys.size() - 1 < right_sibling->get_min_keys())
@@ -331,7 +331,7 @@ private:
         else if (left_sibling != nullptr)
         {
             int index_of_parent_key = get_child_index(parent, block) - 1;
-            std::vector<int> &left_sibling_keys = left_sibling->get_keys();
+            std::vector<K> &left_sibling_keys = left_sibling->get_keys();
 
             // edge case 1 (size - 1 because this checks if after stealing, left will be under min keys)
             if (left_sibling_keys.size() - 1 < left_sibling->get_min_keys())
@@ -422,11 +422,11 @@ private:
             parent_key_index = to_index - 1;
         }
 
-        std::vector<int> &parent_keys = parent->get_keys();
+        std::vector<K> &parent_keys = parent->get_keys();
         std::vector<Block *> &parent_children = parent->get_children();
 
-        std::vector<int> &to_keys = to->get_keys();
-        std::vector<int> &from_keys = from->get_keys();
+        std::vector<K> &to_keys = to->get_keys();
+        std::vector<K> &from_keys = from->get_keys();
 
         bool leaf = is_leaf(to);
 
@@ -504,25 +504,32 @@ public:
         else
         {
             insert_helper(last_block_seen, key, path);
-            std::cout << std::left << std::setw(7) << key << " was successfully added to the tree.\n";
+            std::cout << std::left << std::setw(7) << key << " was added to the tree.\n";
         }
     }
 
-    void remove(int key)
+    void remove(K key)
     {
         std::vector<Block *> path;
         search_helper(this->root, key, path);
-        Block *block_containing_key = path.back();
-        path.pop_back();
 
-        if (!path.empty() && block_containing_key != nullptr)
+        if (path.empty() || path.back() == nullptr)
+            return;
+
+        Block *target_block = path.back();
+        std::vector<K> &keys = target_block->get_keys();
+
+        int index = get_index(target_block, key);
+
+        if (index > 0 && keys.at(index - 1) == key)
         {
-            remove_helper(block_containing_key, key, path);
+            path.pop_back();
+            remove_helper(target_block, key, path);
             std::cout << std::left << std::setw(7) << key << " was removed from the tree.\n";
         }
         else
         {
-            std::cout << std::left << std::setw(7) << key << " is NOT in the tree (REMOVE).\n";
+            std::cout << std::left << std::setw(7) << key << " is NOT in the tree.\n";
         }
     }
 
@@ -580,7 +587,7 @@ std::vector<int> data_gen(int count)
 void test_tree(int b_count, int num_of_items)
 {
     b_count = std::max(2, b_count);
-    B_Tree *tree = new B_Tree(b_count);
+    B_Tree<int> *tree = new B_Tree<int>(b_count);
     std::vector<int> nums = data_gen(num_of_items);
 
     std::cout << "\n------------------------------------------------\n";
@@ -639,5 +646,6 @@ void test_tree(int b_count, int num_of_items)
 
 int main()
 {
+    test_tree(2, 100000);
     return 0;
 }
