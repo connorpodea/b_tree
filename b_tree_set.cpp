@@ -609,7 +609,7 @@ void test_tree(int b_count, int num_of_items)
     std::cout << "\n  -> Took: " << s_us << " us ("
               << (double)s_us / 1000.0 << " ms)\n\n";
 
-    int fail_count = 0;
+    // int fail_count = 0;
     std::cout << "Removing " << num_of_items << " items...";
     auto r_start = std::chrono::high_resolution_clock::now();
     for (int num : nums)
@@ -630,7 +630,7 @@ void test_tree(int b_count, int num_of_items)
     std::cout << "\n------------------------------------------------";
     std::cout << "\nStats:";
     std::cout << "\nB-Tree Degree (b): " << b_count;
-    std::cout << "\nFailures: " << fail_count << " / " << num_of_items;
+    // std::cout << "\nFailures: " << fail_count << " / " << num_of_items;
     std::cout << "\nTotal Time: " << (i_us + s_us + r_us) / 1000000.0 << " seconds" << std::endl;
     std::cout << std::endl;
 
@@ -639,6 +639,6 @@ void test_tree(int b_count, int num_of_items)
 
 int main()
 {
-    test_tree(2, 1000000);
+    test_tree(5000, 10000000);
     return 0;
 }
