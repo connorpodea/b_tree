@@ -147,7 +147,7 @@ private:
         std::vector<K> &keys_to_restructure = block->get_keys();
         std::vector<Block *> &children_to_restructure = block->get_children();
 
-        int key_to_move_up = keys_to_restructure.at(b_count);
+        K key_to_move_up = keys_to_restructure.at(b_count);
 
         Block *right_half = new Block(b_count);
         std::vector<K> &right_half_keys = right_half->get_keys();
@@ -236,7 +236,7 @@ private:
         {
             std::vector<Block *> &children = target_block->get_children();
             Block *replacement_block = nullptr;
-            int replacement_key;
+            K replacement_key;
             path.push_back(target_block);
 
             if (index > 0 && children.at(index - 1) != nullptr)
@@ -485,7 +485,7 @@ public:
         this->root = new Block(b_count);
     }
 
-    void insert(int key)
+    void insert(K key)
     {
         std::vector<Block *> path;
         search_helper(this->root, key, path);
@@ -533,7 +533,7 @@ public:
         }
     }
 
-    void search(int key)
+    void search(K key)
     {
         if (in_tree(key))
         {
@@ -545,7 +545,7 @@ public:
         }
     }
 
-    bool in_tree(int key)
+    bool in_tree(K key)
     {
         std::vector<Block *> path;
         search_helper(this->root, key, path);
