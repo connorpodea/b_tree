@@ -499,7 +499,7 @@ public:
 
         if (index > 0 && last_block_seen->get_keys().at(index - 1) == key)
         {
-            std::cout << std::left << std::setw(7) << "is already in the tree.\n";
+            std::cout << std::left << std::setw(7) << key << " is already in the tree.\n";
         }
         else
         {
@@ -584,6 +584,83 @@ std::vector<int> data_gen(int count)
     return result;
 }
 
+void run_comprehensive_test(int b_count)
+{
+    std::cout << "\n=== STARTING COMPREHENSIVE B-TREE SET TEST (b=" << b_count << ") ===\n";
+    B_Tree<int> tree(b_count);
+    int total_items = 1000;
+
+    // TEST 1: Insertion
+    std::cout << "[TEST 1] Inserting " << total_items << " items... ";
+    for (int i = 1; i <= total_items; i++)
+    {
+        tree.insert(i);
+    }
+
+    bool insert_ok = true;
+    for (int i = 1; i <= total_items; i++)
+    {
+        if (!tree.in_tree(i))
+        {
+            std::cout << "\nFAILED: Key " << i << " missing after insertion.";
+            insert_ok = false;
+            break;
+        }
+    }
+    if (insert_ok)
+        std::cout << "PASSED\n";
+
+    // TEST 2: Duplicate Insertion (should be a no-op, key stays present)
+    std::cout << "[TEST 2] Testing Duplicate Insertion... ";
+    tree.insert(500);
+    if (tree.in_tree(500))
+        std::cout << "PASSED (Key still present)\n";
+    else
+        std::cout << "FAILED (Key lost on duplicate insert)\n";
+
+    // TEST 3: Non-Leaf Deletion (Internal Node)
+    // In a tree with 1000 items, low numbers like 10 or 20 are likely in internal nodes
+    std::cout << "[TEST 3] Deleting Internal Node Keys... ";
+    int internal_key = 10;
+    tree.remove(internal_key);
+    if (tree.in_tree(internal_key))
+    {
+        std::cout << "FAILED: Key " << internal_key << " still exists after remove.\n";
+    }
+    else
+    {
+        std::cout << "PASSED\n";
+    }
+
+    // TEST 4: Massive Random Deletion (Triggers Borrow & Merge)
+    std::cout << "[TEST 4] Random Deletion (Borrow/Merge Stress)... ";
+    std::vector<int> random_keys = data_gen(total_items);
+    bool delete_ok = true;
+    for (int key : random_keys)
+    {
+        if (key == internal_key)
+            continue; // already deleted
+        tree.remove(key);
+        if (tree.in_tree(key))
+        {
+            std::cout << "\nFAILED: Key " << key << " still found after removal.";
+            delete_ok = false;
+            break;
+        }
+    }
+    if (delete_ok)
+        std::cout << "PASSED\n";
+
+    // TEST 5: Empty Tree Integrity
+    std::cout << "[TEST 5] Empty Tree State... ";
+    if (tree.in_tree(1))
+        std::cout << "FAILED (Tree should be empty)\n";
+    else
+        std::cout << "PASSED\n";
+
+    std::cout << "=== ALL TESTS COMPLETE ===\n\n";
+}
+
 void test_tree(int b_count, int num_of_items)
 {
     b_count = std::max(2, b_count);
@@ -646,6 +723,8 @@ void test_tree(int b_count, int num_of_items)
 
 int main()
 {
+    run_comprehensive_test(2);
+    run_comprehensive_test(4);
     test_tree(2, 100000);
     return 0;
 }

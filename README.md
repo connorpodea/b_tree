@@ -9,7 +9,7 @@ STL.
 | File | What it is |
 |---|---|
 | [b_tree_map.cpp](b_tree_map.cpp) | `B_Tree<K, V>` — an ordered map keyed on `K` |
-| [b_tree_set.cpp](b_tree_set.cpp) | `B_Tree<K>` — an ordered set, plus a timing benchmark in `main()` |
+| [b_tree_set.cpp](b_tree_set.cpp) | `B_Tree<K>` — an ordered set |
 
 Both are self-contained, header-free single files: the tree, its internal `Block`
 (node) class, and a small test/benchmark harness all live in one `.cpp`.
@@ -66,20 +66,18 @@ g++ -std=c++17 -O2 b_tree_set.cpp -o b_tree_set
 ./b_tree_set
 ```
 
-`b_tree_set.cpp`'s `main()` builds a tree with `b = 2`, inserts/searches/removes
-100,000 shuffled integers, and prints timing for each phase.
+Both files' `main()` runs the same two things, back to back:
 
-`b_tree_map.cpp`'s `main()` is currently just a stub — the comprehensive test
-suite (`run_comprehensive_test`) is written but not called yet.
+- `run_comprehensive_test(b)` at `b = 2` and `b = 4` — a correctness suite
+  covering insertion, duplicate/upsert handling, internal-node deletion, and a
+  random-deletion stress test that exercises the borrow/merge underflow paths.
+- `test_tree(b, n)` — inserts, searches, and removes 100,000 shuffled integers
+  at `b = 2` and prints timing for each phase.
 
 ## Known issues
 
-`b_tree_map.cpp` doesn't currently compile: `remove()` references an undeclared
-`block_containing_key` (should be `target_block`), and `at()` references an
-undeclared `last_block` (should be `last_block_seen`). The set implementation
-doesn't have this problem and builds cleanly. Also worth knowing: neither variant
-frees the tree's nodes on destruction (there's no destructor), only as a side
-effect of merges during `remove`.
+Neither variant frees the tree's nodes on destruction (there's no destructor),
+only as a side effect of merges during `remove`.
 
 ## Why
 

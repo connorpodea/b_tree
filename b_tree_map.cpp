@@ -287,7 +287,7 @@ private:
             {
                 Block *old_root = block;
                 this->root = block->get_children().front();
-                old_root->get_children().clear;
+                old_root->get_children().clear();
                 delete old_root;
             }
             return;
@@ -529,37 +529,27 @@ public:
 
         int index = get_index(target_block, key);
 
-        if (index > 0 && block_containing_key->get_kv_pairs().at(index - 1).first == key)
+        if (index > 0 && target_block->get_kv_pairs().at(index - 1).first == key)
         {
             path.pop_back();
-            V value = block_containing_key->get_kv_pairs().at(index - 1).second;
-            remove_helper(block_containing_key, key, path);
+            V value = target_block->get_kv_pairs().at(index - 1).second;
+            remove_helper(target_block, key, path);
 
-            std::cout << "the key " << key << " and its value " << value << " were removed from the tree";
+            std::cout << "the key " << key << " and its value " << value << " were removed from the tree" << std::endl;
+        }
+        else
+        {
+            std::cout << "the key " << key << " was not found in the tree" << std::endl;
         }
     }
 
     void search(K key)
     {
-        std::vector<Block *> path;
-        search_helper(this->root, key, path);
-
-        if (path.empty())
+        try
         {
-            std::cout << "the tree is empty." << std::endl;
-            return;
+            std::cout << key << " was found in the tree, and is paired with the value " << at(key) << std::endl;
         }
-
-        Block *last_block_seen = path.back();
-        path.pop_back();
-
-        int index = get_index(last_block_seen, key);
-
-        if (index > 0 && last_block_seen->get_kv_pairs().at(index - 1).first == key)
-        {
-            std::cout << key << " was found in the tree, and is paired with the value " << last_block_seen->get_kv_pairs().at(index - 1).second << std::endl;
-        }
-        else
+        catch (const std::out_of_range &)
         {
             std::cout << key << " was not found in the tree" << std::endl;
         }
@@ -578,7 +568,7 @@ public:
         Block *last_block_seen = path.back();
         int index = get_index(last_block_seen, key);
 
-        if (index > 0 && last_block->get_kv_pairs().at(index - 1).first == key)
+        if (index > 0 && last_block_seen->get_kv_pairs().at(index - 1).first == key)
         {
             return last_block_seen->get_kv_pairs().at(index - 1).second;
         }
@@ -702,8 +692,64 @@ void run_comprehensive_test(int b_count)
     std::cout << "=== ALL TESTS COMPLETE ===\n\n";
 }
 
+void test_tree(int b_count, int num_of_items)
+{
+    b_count = std::max(2, b_count);
+    B_Tree<int, int> *tree = new B_Tree<int, int>(b_count);
+    std::vector<int> nums = data_gen(num_of_items);
+
+    std::cout << "\n------------------------------------------------\n";
+    std::cout << std::endl;
+    std::cout << "Inserting " << num_of_items << " items...";
+    auto i_start = std::chrono::high_resolution_clock::now();
+    for (int num : nums)
+    {
+        tree->insert(num, num * 10);
+    }
+    auto i_end = std::chrono::high_resolution_clock::now();
+
+    auto i_us = std::chrono::duration_cast<std::chrono::microseconds>(i_end - i_start).count();
+    std::cout << "\n  -> Took: " << i_us << " us ("
+              << std::fixed << std::setprecision(3) << (double)i_us / 1000.0 << " ms)\n\n";
+
+    std::cout << "Searching " << num_of_items << " items...";
+    auto s_start = std::chrono::high_resolution_clock::now();
+    for (int num : nums)
+    {
+        tree->search(num);
+    }
+    auto s_end = std::chrono::high_resolution_clock::now();
+
+    auto s_us = std::chrono::duration_cast<std::chrono::microseconds>(s_end - s_start).count();
+    std::cout << "\n  -> Took: " << s_us << " us ("
+              << (double)s_us / 1000.0 << " ms)\n\n";
+
+    std::cout << "Removing " << num_of_items << " items...";
+    auto r_start = std::chrono::high_resolution_clock::now();
+    for (int num : nums)
+    {
+        tree->remove(num);
+    }
+    auto r_end = std::chrono::high_resolution_clock::now();
+
+    auto r_us = std::chrono::duration_cast<std::chrono::microseconds>(r_end - r_start).count();
+    std::cout << "\n  -> Took: " << r_us << " us ("
+              << (double)r_us / 1000.0 << " ms)\n";
+
+    std::cout << "\n------------------------------------------------";
+    std::cout << "\nStats:";
+    std::cout << "\nB-Tree Degree (b): " << b_count;
+    std::cout << "\nTotal Time: " << (i_us + s_us + r_us) / 1000000.0 << " seconds" << std::endl;
+    std::cout << std::endl;
+
+    delete tree;
+}
+
 // main
 int main()
 {
+    run_comprehensive_test(2);
+    run_comprehensive_test(4);
+    test_tree(2, 100000);
     return 0;
 }
