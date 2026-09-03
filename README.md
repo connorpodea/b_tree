@@ -1,8 +1,6 @@
 # B-Tree
 
-A from-scratch, templated B-Tree in C++, written over winter break 2025 to actually
-understand the data structure — not just use it. No external dependencies, just the
-STL.
+A from-scratch, templated B-Tree in C++, written over winter break 2025 to prepare for data structures and algorithms. No external dependencies, just the STL.
 
 ## What's here
 
