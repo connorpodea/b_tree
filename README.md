@@ -84,3 +84,8 @@ only as a side effect of merges during `remove`.
 Built as a learning exercise to internalize the invariants that make a B-Tree
 work — bounded fanout, splitting on overflow, borrow-before-merge on underflow —
 by implementing them rather than just reading about them.
+
+## Author
+
+Connor Podea — a personal project built for learning advanced data structures
+and algorithms.
