@@ -1,49 +1,48 @@
 # B-Tree
 
-A from-scratch, templated B-Tree in C++, written over winter break 2025 to prepare for data structures and algorithms. No external dependencies, just the STL.
+A templated B-Tree in C++, written from scratch over winter break 2025 while
+prepping for DSA. STL only, no dependencies.
 
-## What's here
+## Files
 
 | File | What it is |
 |---|---|
-| [b_tree_map.cpp](b_tree_map.cpp) | `B_Tree<K, V>` — an ordered map keyed on `K` |
-| [b_tree_set.cpp](b_tree_set.cpp) | `B_Tree<K>` — an ordered set |
+| [b_tree_map.cpp](b_tree_map.cpp) | `B_Tree<K, V>`, an ordered map |
+| [b_tree_set.cpp](b_tree_set.cpp) | `B_Tree<K>`, an ordered set |
 
-Both are self-contained, header-free single files: the tree, its internal `Block`
-(node) class, and a small test/benchmark harness all live in one `.cpp`.
+Each file is standalone. The tree, its inner `Block` class, and the test harness
+all sit in one `.cpp`.
 
-## How it's structured
+## How it works
 
-Each `Block` holds up to `2b - 1` keys (or key-value pairs) and up to `2b` child
-pointers, where `b` — the minimum degree — is passed into the constructor
-(`B_Tree(int b_count)`, defaulting to `b = 2`). Keys inside a block are kept sorted,
-and `get_index` binary-searches a block to find where a key belongs or already lives.
+A `Block` holds up to `2b - 1` keys and `2b` child pointers. `b` is the minimum
+degree, passed to the constructor, default 2. Keys in a block stay sorted, and
+`get_index` binary searches a block for where a key is or where it should go.
 
-- **Insert** walks down to a leaf, inserts in sorted order, and if the leaf
-  overflows past `2b - 1` keys, splits it: the middle key moves up into the parent
-  and the block is divided into two half-full siblings. Splits can cascade up to
-  the root, which is how the tree grows in height.
-- **Remove** finds the key (if it's in an internal node, swaps it with its
-  in-order predecessor/successor from a leaf first), deletes from a leaf, and if
-  that leaf underflows below `b - 1` keys, fixes it by borrowing a key from a
-  sibling or, if neither sibling has one to spare, merging with a sibling and
-  pulling a key down from the parent. Merges can cascade up, which is how the
-  tree shrinks in height.
-- **Search** / **`in_tree`** binary-search down the tree in `O(log n)`.
+**Insert** walks down to a leaf and inserts in sorted order. If the leaf goes
+past `2b - 1` keys it splits: the middle key moves up into the parent, and the
+rest divides into two half-full blocks. That can push the parent over its own
+limit, so splits cascade upward. This is how the tree gets taller.
 
-This borrow-before-merge, split/merge-cascades-upward approach is the standard
-B-Tree algorithm (as in CLRS) — the point of the project was implementing it
-myself rather than reasoning about it abstractly.
+**Remove** finds the key. If it sits in an internal node, it gets swapped with
+the in-order predecessor or successor from a leaf first, so the actual deletion
+always happens in a leaf. If that leaf drops below `b - 1` keys, it borrows a key
+from a sibling, or merges with one and pulls a key down from the parent when no
+sibling can spare anything. Merges cascade too, which is how the tree gets
+shorter.
+
+**Search** and **`in_tree`** binary search down the tree.
+
+None of this is novel, it's the CLRS algorithm. I wanted to write it instead of
+just reading it.
 
 ## API
-
-Both variants expose:
 
 ```cpp
 B_Tree<K, V> tree;        // default b = 2
 B_Tree<K, V> tree(b);     // explicit minimum degree
 
-tree.insert(key, value);  // set: insert(key) — upsert semantics on the map
+tree.insert(key, value);  // set: insert(key). upsert semantics on the map
 tree.remove(key);
 tree.search(key);         // prints a found/not-found message
 tree.in_tree(key);        // -> bool
@@ -53,73 +52,66 @@ tree.validate();          // -> bool, true if still a legal B-Tree
 tree.validate(error);     // same, and fills error with the first thing wrong
 ```
 
-`validate` walks the whole tree and checks that every non-root block holds
-between `b - 1` and `2b - 1` keys, that keys within a block are strictly
-increasing, that an internal block with `k` keys has exactly `k + 1` children,
-that every key sits inside the range its subtree is responsible for, and that
-all leaves are at the same depth. It's `O(n)`, so it's a test tool, not
-something to call in a hot loop.
-
-The map variant additionally has:
+The map also has:
 
 ```cpp
-V &at(K key);              // throws std::out_of_range if missing
+V &at(K key);             // throws std::out_of_range if missing
 ```
 
-## Building & running
+`validate()` walks the tree and checks the things that should always hold. Every
+non-root block holds between `b - 1` and `2b - 1` keys. Keys in a block strictly
+increase. An internal block with `k` keys has `k + 1` children. Every key falls
+inside the range its subtree covers. All leaves sit at the same depth. It's
+`O(n)`, so it's test code only.
 
-Each file is standalone and compiles on its own:
+## Building
 
 ```bash
 g++ -std=c++17 -O2 b_tree_set.cpp -o b_tree_set
 ./b_tree_set
 ```
 
-Both files' `main()` takes an optional benchmark size, defaulting to 200,000:
+`main()` runs the tests, then the benchmarks at whatever size you give it:
 
 ```bash
-./b_tree_set            # tests + benchmarks at n = 200,000
-./b_tree_set 2000000    # same, at n = 2,000,000
+./b_tree_set            # n = 200,000 (default)
+./b_tree_set 2000000
 ```
 
-It runs four things, back to back:
+What it runs:
 
-- `run_comprehensive_test(b)` at `b = 2` and `b = 4` — a correctness suite
-  covering insertion, duplicate/upsert handling, internal-node deletion, and a
-  random-deletion stress test that exercises the borrow/merge underflow paths.
-  `validate()` is checked after the bulk insert and after every one of the 1,000
-  random deletions.
-- `run_differential_test(b, ops)` at `b = 2` and `b = 4` — 2,000 randomly
-  chosen inserts and removes over a 500-key range, mirrored into a `std::set`
-  (or `std::map`). After *every* operation it asserts the tree is still a legal
-  B-Tree and that it agrees with the STL container on every key in range — for
-  the map, on the associated values too. The engine is seeded with a fixed value
-  so a failure is reproducible.
-- `run_fanout_sweep(n, trials)` — the same insert/search/remove workload at
-  `b` = 2, 4, 8, 16, 32, 64 and 128, best of `trials` runs per degree.
-- `run_stl_comparison(n, b, trials)` — that workload against `std::set` (or
-  `std::map`), which is a red-black tree. The two containers are run in
-  alternating order so allocator warm-up doesn't consistently favour one.
+- `run_comprehensive_test(b)` at `b = 2` and `b = 4`. Insertion, duplicate and
+  upsert handling, internal-node deletion, and a random-deletion stress test to
+  hit the borrow and merge paths. `validate()` runs after the bulk insert and
+  after each of the 1,000 random deletes.
+- `run_differential_test(b, ops)` at `b = 2` and `b = 4`. 2,000 random inserts
+  and removes over a 500-key range, mirrored into a `std::set` or `std::map`.
+  After every operation it checks the tree is still legal and still agrees with
+  the STL container on every key in range, values included for the map. Fixed
+  seed, so a failure reproduces.
+- `run_fanout_sweep(n, trials)`. The same workload at `b` = 2, 4, 8, 16, 32, 64
+  and 128.
+- `run_stl_comparison(n, b, trials)`. The same workload against `std::set` or
+  `std::map`. They run in alternating order so allocator warm-up doesn't keep
+  helping the same one.
 
-`test_tree(b, n)` is still there — it's the original single-degree timing run,
-now superseded by the sweep.
+`test_tree(b, n)` is the original single-degree timing run. The sweep covers it
+now.
 
-Both timing paths call `set_verbose(false)` first; with the per-operation
-printing left on, roughly 40% of the measured time was `iostream` rather than
-the tree. Both also assert, outside the timed region, that every key was found,
-that `validate()` still passes, and that the container is empty at the end — a
-benchmark that silently stopped doing the work would otherwise look fast.
+Both timing paths call `set_verbose(false)` first. With the per-operation
+printing left on, about 40% of the measured time was `iostream`. They also check,
+outside the timed section, that every key was found and the container ended up
+empty.
 
 ## Benchmarks
 
-Apple M2 Pro, 16 GB, macOS 26.6, Apple clang 17, `-O2`. Total milliseconds for
-100% insert then 100% search then 100% delete of `n` shuffled unique ints, best
-of 3 trials.
+Apple M2 Pro, 16 GB, macOS 26.6, Apple clang 17, `-O2`. Total milliseconds to
+insert all `n`, then search all `n`, then delete all `n`, on shuffled unique
+ints. Best of 3 runs.
 
-Minimum degree matters far more than anything else. A bigger `b` means a
-shallower tree and fewer pointer chases per operation, and the keys inside a
-block are contiguous, so scanning one block is cache-friendly in a way that
-following child pointers is not:
+Minimum degree turned out to matter more than anything else. A bigger `b` means a
+shallower tree and fewer pointer hops per operation, and the keys in a block are
+contiguous, so scanning one block is cheap next to chasing child pointers:
 
 | `b` | set, n=2M | map, n=2M |
 |---|---|---|
@@ -131,12 +123,11 @@ following child pointers is not:
 | 64 | 1,657 ms | 2,001 ms |
 | 128 | 1,573 ms | 1,960 ms |
 
-Going from `b = 2` to `b = 64` is a 7.7x speedup on the set and 6.4x on the map.
+Going from `b = 2` to `b = 64` is 7.7x on the set and 6.4x on the map.
 
-Against the STL red-black trees at `b = 64`, there's a crossover. Below roughly
-half a million keys `std::set` wins; above a million this tree wins, and the
-gap widens as `n` grows — which is the cache-locality argument for a B-Tree
-showing up in practice:
+At `b = 64` there's a crossover against the STL red-black trees. Under about half
+a million keys `std::set` wins. Past a million this one does, and the margin
+keeps growing:
 
 | n | this B-Tree (b=64) | `std::set` | ratio |
 |---|---|---|---|
@@ -147,33 +138,24 @@ showing up in practice:
 | 1,000,000 | 804.0 ms | 951.4 ms | 1.2x |
 | 2,000,000 | 1,655 ms | 2,634 ms | 1.6x |
 
-The map lands in the same place: 2,010 ms against `std::map`'s 3,229 ms at
-n = 2,000,000, a 1.6x margin.
+The map is the same story: 2,010 ms against `std::map`'s 3,229 ms at n = 2M.
 
-Caveat on the low end: at `b = 2` this tree is much slower than `std::set` at
-every size. The interesting numbers all come from raising the fanout.
+At `b = 2` it loses to `std::set` at every size I tested. All of the good numbers
+come from raising the fanout.
 
 ## Memory
 
-Both variants free every block in the destructor, and the copy constructor and
-copy assignment are `= delete`d — the tree owns raw `Block *` pointers, so a
-default copy would hand two trees the same blocks and double free them.
+Both variants free every block in the destructor. The copy constructor and copy
+assignment are deleted, since the tree owns raw `Block *` and a default copy
+would hand two trees the same blocks to free.
 
-Checked with macOS `leaks`, which reports 0 leaks for both binaries, including
-the case of building a populated tree and destroying it without removing
-anything first:
+macOS `leaks` reports 0 for both, including the case of building a full tree and
+destroying it without removing anything first:
 
 ```bash
 leaks -atExit -- ./b_tree_set
 ```
 
-## Why
-
-Built as a learning exercise to internalize the invariants that make a B-Tree
-work — bounded fanout, splitting on overflow, borrow-before-merge on underflow —
-by implementing them rather than just reading about them.
-
 ## Author
 
-Connor Podea — a personal project built for learning advanced data structures
-and algorithms.
+Connor Podea. Personal project, built to learn the data structure properly.
