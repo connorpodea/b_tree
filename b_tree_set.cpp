@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <numeric>
 #include <chrono>
+#include <cstdlib> // std::atoi for the benchmark size argument
+#include <set>    // reference container for the differential test
+#include <string> // invariant checker error messages
 
 template <typename K>
 
@@ -51,6 +54,10 @@ private:
 
     Block *root;
 
+    // the public methods narrate what they do, which is handy for a demo but
+    // ruins a benchmark, so it can be switched off
+    bool verbose = true;
+
     bool is_leaf(Block *block)
     {
         return block->get_children().empty();
@@ -80,6 +87,113 @@ private:
             }
         }
         return left;
+    }
+
+    void destroy(Block *block)
+    {
+        if (block == nullptr)
+        {
+            return;
+        }
+
+        for (Block *child : block->get_children())
+        {
+            destroy(child);
+        }
+
+        delete block;
+    }
+
+    // walks the subtree and returns its height, or -1 if any b-tree invariant
+    // is broken. lower/upper are the separator keys this subtree sits between
+    // (nullptr means unbounded on that side).
+    int check_block(Block *block, const K *lower, const K *upper, bool root, std::string &error)
+    {
+        std::vector<K> &keys = block->get_keys();
+        std::vector<Block *> &children = block->get_children();
+
+        // 1. key count bounds. only the root is allowed under the minimum
+        if ((int)keys.size() > block->get_max_keys())
+        {
+            error = "a block holds more than 2b - 1 keys";
+            return -1;
+        }
+        if (!root && (int)keys.size() < block->get_min_keys())
+        {
+            error = "a non-root block holds fewer than b - 1 keys";
+            return -1;
+        }
+        if (root && keys.empty() && !children.empty())
+        {
+            error = "the root has children but no keys";
+            return -1;
+        }
+
+        // 2. keys inside a block are strictly increasing (no duplicates)
+        for (size_t i = 1; i < keys.size(); i++)
+        {
+            if (!(keys.at(i - 1) < keys.at(i)))
+            {
+                error = "keys inside a block are not in sorted order";
+                return -1;
+            }
+        }
+
+        // 3. every key falls inside the range this subtree is responsible for
+        if (!keys.empty())
+        {
+            if (lower != nullptr && !(*lower < keys.front()))
+            {
+                error = "a key is not greater than the separator to its left";
+                return -1;
+            }
+            if (upper != nullptr && !(keys.back() < *upper))
+            {
+                error = "a key is not less than the separator to its right";
+                return -1;
+            }
+        }
+
+        // 4. a leaf has no children, so the walk ends here
+        if (children.empty())
+        {
+            return 0;
+        }
+
+        // 5. an internal block with k keys has exactly k + 1 children
+        if (children.size() != keys.size() + 1)
+        {
+            error = "an internal block has the wrong number of children";
+            return -1;
+        }
+
+        // 6. recurse, narrowing the allowed range for each child, and require
+        //    every leaf to sit at the same depth
+        int height = -1;
+        for (size_t i = 0; i < children.size(); i++)
+        {
+            const K *child_lower = (i == 0) ? lower : &keys.at(i - 1);
+            const K *child_upper = (i == keys.size()) ? upper : &keys.at(i);
+
+            int child_height = check_block(children.at(i), child_lower, child_upper, false, error);
+
+            if (child_height < 0)
+            {
+                return -1;
+            }
+
+            if (height == -1)
+            {
+                height = child_height;
+            }
+            else if (child_height != height)
+            {
+                error = "leaves are not all at the same depth";
+                return -1;
+            }
+        }
+
+        return height + 1;
     }
 
     int get_child_index(Block *parent, Block *child)
@@ -485,6 +599,32 @@ public:
         this->root = new Block(b_count);
     }
 
+    ~B_Tree()
+    {
+        destroy(this->root);
+        this->root = nullptr;
+    }
+
+    // the tree owns raw Block pointers and frees them in the destructor, so a
+    // default copy would hand two trees the same blocks and double free them
+    B_Tree(const B_Tree &) = delete;
+    B_Tree &operator=(const B_Tree &) = delete;
+
+    void set_verbose(bool on) { this->verbose = on; }
+
+    // true if the tree is still a legal b-tree. on failure, error says why
+    bool validate(std::string &error)
+    {
+        error.clear();
+        return check_block(this->root, nullptr, nullptr, true, error) >= 0;
+    }
+
+    bool validate()
+    {
+        std::string error;
+        return validate(error);
+    }
+
     void insert(K key)
     {
         std::vector<Block *> path;
@@ -499,12 +639,14 @@ public:
 
         if (index > 0 && last_block_seen->get_keys().at(index - 1) == key)
         {
-            std::cout << std::left << std::setw(7) << key << " is already in the tree.\n";
+            if (this->verbose)
+                std::cout << std::left << std::setw(7) << key << " is already in the tree.\n";
         }
         else
         {
             insert_helper(last_block_seen, key, path);
-            std::cout << std::left << std::setw(7) << key << " was added to the tree.\n";
+            if (this->verbose)
+                std::cout << std::left << std::setw(7) << key << " was added to the tree.\n";
         }
     }
 
@@ -525,11 +667,13 @@ public:
         {
             path.pop_back();
             remove_helper(target_block, key, path);
-            std::cout << std::left << std::setw(7) << key << " was removed from the tree.\n";
+            if (this->verbose)
+                std::cout << std::left << std::setw(7) << key << " was removed from the tree.\n";
         }
         else
         {
-            std::cout << std::left << std::setw(7) << key << " is NOT in the tree.\n";
+            if (this->verbose)
+                std::cout << std::left << std::setw(7) << key << " is NOT in the tree.\n";
         }
     }
 
@@ -537,11 +681,13 @@ public:
     {
         if (in_tree(key))
         {
-            std::cout << std::left << std::setw(7) << key << " is in the tree.\n";
+            if (this->verbose)
+                std::cout << std::left << std::setw(7) << key << " is in the tree.\n";
         }
         else
         {
-            std::cout << std::left << std::setw(7) << key << " is NOT in the tree.\n";
+            if (this->verbose)
+                std::cout << std::left << std::setw(7) << key << " is NOT in the tree.\n";
         }
     }
 
@@ -588,7 +734,9 @@ void run_comprehensive_test(int b_count)
 {
     std::cout << "\n=== STARTING COMPREHENSIVE B-TREE SET TEST (b=" << b_count << ") ===\n";
     B_Tree<int> tree(b_count);
+    tree.set_verbose(false);
     int total_items = 1000;
+    std::string error;
 
     // TEST 1: Insertion
     std::cout << "[TEST 1] Inserting " << total_items << " items... ";
@@ -606,6 +754,11 @@ void run_comprehensive_test(int b_count)
             insert_ok = false;
             break;
         }
+    }
+    if (insert_ok && !tree.validate(error))
+    {
+        std::cout << "\nFAILED: " << error << " after insertion.";
+        insert_ok = false;
     }
     if (insert_ok)
         std::cout << "PASSED\n";
@@ -647,6 +800,12 @@ void run_comprehensive_test(int b_count)
             delete_ok = false;
             break;
         }
+        if (!tree.validate(error))
+        {
+            std::cout << "\nFAILED: " << error << " after removing key " << key << ".";
+            delete_ok = false;
+            break;
+        }
     }
     if (delete_ok)
         std::cout << "PASSED\n";
@@ -661,10 +820,69 @@ void run_comprehensive_test(int b_count)
     std::cout << "=== ALL TESTS COMPLETE ===\n\n";
 }
 
+// runs a random mix of inserts and removes against a std::set holding the same
+// keys, and after every single operation checks both that the tree is still a
+// legal b-tree and that it agrees with std::set on every key in range
+void run_differential_test(int b_count, int operations)
+{
+    const int key_range = 500;
+
+    std::cout << "=== DIFFERENTIAL TEST vs std::set (b=" << b_count << ", "
+              << operations << " ops) ===\n";
+
+    B_Tree<int> tree(b_count);
+    tree.set_verbose(false);
+    std::set<int> reference;
+
+    std::mt19937 engine(12345); // fixed seed so a failure is reproducible
+    std::uniform_int_distribution<int> key_dist(1, key_range);
+    std::uniform_int_distribution<int> op_dist(0, 1);
+
+    std::string error;
+
+    for (int op = 1; op <= operations; op++)
+    {
+        int key = key_dist(engine);
+        bool inserting = op_dist(engine) == 0;
+
+        if (inserting)
+        {
+            tree.insert(key);
+            reference.insert(key);
+        }
+        else
+        {
+            tree.remove(key);
+            reference.erase(key);
+        }
+
+        if (!tree.validate(error))
+        {
+            std::cout << "FAILED: " << error << " after op " << op << " ("
+                      << (inserting ? "insert " : "remove ") << key << ")\n";
+            return;
+        }
+
+        for (int probe = 1; probe <= key_range; probe++)
+        {
+            if (tree.in_tree(probe) != (reference.count(probe) > 0))
+            {
+                std::cout << "FAILED: tree and std::set disagree on key " << probe
+                          << " after op " << op << "\n";
+                return;
+            }
+        }
+    }
+
+    std::cout << "PASSED (invariants and std::set agreement checked after each of "
+              << operations << " ops, " << reference.size() << " keys left in tree)\n\n";
+}
+
 void test_tree(int b_count, int num_of_items)
 {
     b_count = std::max(2, b_count);
     B_Tree<int> *tree = new B_Tree<int>(b_count);
+    tree->set_verbose(false); // otherwise the timings measure iostream, not the tree
     std::vector<int> nums = data_gen(num_of_items);
 
     std::cout << "\n------------------------------------------------\n";
@@ -721,10 +939,199 @@ void test_tree(int b_count, int num_of_items)
     delete tree;
 }
 
-int main()
+
+// ---------------------------------------------------------------------------
+// benchmarks
+// ---------------------------------------------------------------------------
+
+struct Timing
 {
+    double insert_ms, search_ms, remove_ms;
+    double total() const { return insert_ms + search_ms + remove_ms; }
+};
+
+static double ms_between(std::chrono::high_resolution_clock::time_point a,
+                         std::chrono::high_resolution_clock::time_point b)
+{
+    return std::chrono::duration_cast<std::chrono::microseconds>(b - a).count() / 1000.0;
+}
+
+// times insert / search / remove over nums, then checks the work actually
+// happened so a broken fast path can never look like a fast implementation
+Timing time_btree(int b_count, const std::vector<int> &nums)
+{
+    B_Tree<int> tree(b_count);
+    tree.set_verbose(false);
+
+    auto t0 = std::chrono::high_resolution_clock::now();
+    for (int x : nums)
+        tree.insert(x);
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    int found = 0;
+    for (int x : nums)
+        found += tree.in_tree(x) ? 1 : 0;
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    for (int x : nums)
+        tree.remove(x);
+    auto t3 = std::chrono::high_resolution_clock::now();
+
+    std::string error;
+    if (found != (int)nums.size())
+    {
+        std::cout << "BENCHMARK BUG: found " << found << " of " << nums.size() << " keys\n";
+        exit(1);
+    }
+    if (!tree.validate(error))
+    {
+        std::cout << "BENCHMARK BUG: " << error << "\n";
+        exit(1);
+    }
+    for (int x : nums)
+    {
+        if (tree.in_tree(x))
+        {
+            std::cout << "BENCHMARK BUG: key " << x << " survived removal\n";
+            exit(1);
+        }
+    }
+
+    return {ms_between(t0, t1), ms_between(t1, t2), ms_between(t2, t3)};
+}
+
+Timing time_std_set(const std::vector<int> &nums)
+{
+    std::set<int> reference;
+
+    auto t0 = std::chrono::high_resolution_clock::now();
+    for (int x : nums)
+        reference.insert(x);
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    int found = 0;
+    for (int x : nums)
+        found += reference.count(x) ? 1 : 0;
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    for (int x : nums)
+        reference.erase(x);
+    auto t3 = std::chrono::high_resolution_clock::now();
+
+    if (found != (int)nums.size() || !reference.empty())
+    {
+        std::cout << "BENCHMARK BUG in the std::set baseline\n";
+        exit(1);
+    }
+
+    return {ms_between(t0, t1), ms_between(t1, t2), ms_between(t2, t3)};
+}
+
+std::vector<int> shuffled_keys(int n)
+{
+    std::vector<int> nums(n);
+    std::iota(nums.begin(), nums.end(), 1);
+    std::mt19937 engine(99); // fixed seed so runs are comparable
+    std::shuffle(nums.begin(), nums.end(), engine);
+    return nums;
+}
+
+// how much the minimum degree matters. a bigger b means a shallower tree and
+// fewer pointer chases per operation, at the cost of shifting more keys inside
+// a block on each insert or delete
+void run_fanout_sweep(int n, int trials)
+{
+    std::cout << "=== FANOUT SWEEP (n=" << n << ", best of " << trials
+              << " trials, milliseconds) ===\n\n";
+
+    std::vector<int> nums = shuffled_keys(n);
+
+    std::cout << std::fixed << std::setprecision(1);
+    std::cout << std::left << std::setw(10) << "b"
+              << std::right << std::setw(10) << "insert"
+              << std::setw(10) << "search"
+              << std::setw(10) << "remove"
+              << std::setw(10) << "total" << "\n";
+    std::cout << std::string(50, '-') << "\n";
+
+    int degrees[] = {2, 4, 8, 16, 32, 64, 128};
+
+    for (int b : degrees)
+    {
+        Timing best{1e18, 1e18, 1e18};
+
+        for (int t = 0; t < trials; t++)
+        {
+            Timing run = time_btree(b, nums);
+            best.insert_ms = std::min(best.insert_ms, run.insert_ms);
+            best.search_ms = std::min(best.search_ms, run.search_ms);
+            best.remove_ms = std::min(best.remove_ms, run.remove_ms);
+        }
+
+        std::cout << std::left << std::setw(10) << b
+                  << std::right << std::setw(10) << best.insert_ms
+                  << std::setw(10) << best.search_ms
+                  << std::setw(10) << best.remove_ms
+                  << std::setw(10) << best.total() << "\n";
+    }
+
+    std::cout << "\n";
+}
+
+// the same workload against std::set, which is a red-black tree. the two are
+// run in alternating order so allocator warm-up does not favour one of them
+void run_stl_comparison(int n, int b_count, int trials)
+{
+    std::cout << "=== VS std::set (n=" << n << ", b=" << b_count << ", best of "
+              << trials << " trials, milliseconds) ===\n\n";
+
+    std::vector<int> nums = shuffled_keys(n);
+
+    double tree_best = 1e18;
+    double std_best = 1e18;
+
+    for (int t = 0; t < trials; t++)
+    {
+        if (t % 2 == 0)
+        {
+            std_best = std::min(std_best, time_std_set(nums).total());
+            tree_best = std::min(tree_best, time_btree(b_count, nums).total());
+        }
+        else
+        {
+            tree_best = std::min(tree_best, time_btree(b_count, nums).total());
+            std_best = std::min(std_best, time_std_set(nums).total());
+        }
+    }
+
+    std::cout << std::fixed << std::setprecision(1);
+    std::cout << std::left << std::setw(22) << "this B-Tree"
+              << std::right << std::setw(10) << tree_best << " ms\n";
+    std::cout << std::left << std::setw(22) << "std::set"
+              << std::right << std::setw(10) << std_best << " ms\n";
+    std::cout << std::left << std::setw(22) << "ratio"
+              << std::right << std::setw(10) << std::setprecision(2)
+              << (std_best / tree_best) << "x\n\n";
+    std::cout << (tree_best < std_best ? "this B-Tree is faster at this size\n"
+                                       : "std::set is faster at this size\n");
+    std::cout << "\n";
+}
+
+int main(int argc, char **argv)
+{
+    // the benchmarks take a size on the command line so the bigger runs are
+    // easy to reproduce, e.g. ./b_tree_set 2000000
+    int n = (argc > 1) ? std::atoi(argv[1]) : 200000;
+    int trials = 3;
+
     run_comprehensive_test(2);
     run_comprehensive_test(4);
-    test_tree(2, 100000);
+
+    run_differential_test(2, 2000);
+    run_differential_test(4, 2000);
+
+    run_fanout_sweep(n, trials);
+    run_stl_comparison(n, 64, trials);
+
     return 0;
 }
